@@ -9,7 +9,7 @@ if __name__ == '__main__':
                              sampling_num=config.sampling_num)
     trajrnn.data_prepare(griddatapath=config.gridxypath, coordatapath=config.corrdatapath,
                          distancepath=config.distancepath, train_radio=config.seeds_radio)
-    # load_model_name = 'model/dtw/porto_dtw_LSTM_training_10000_940_incellTrue_config_True_0.005_20_10_0.2_porto_True_128_train.h5'
+
     if config.loadModel == False:
         load_model_name = None
     else:
