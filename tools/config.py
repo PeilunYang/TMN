@@ -1,11 +1,11 @@
 # Data path
-# corrdatapath = './features/geolife_traj_coord'
-# gridxypath = './features/geolife_traj_grid'
-# distancepath = './features/geolife_discret_frechet_distance_all_9200'
-# distancepath = './features/geolife_erp_39_115_distance_all_9000'
-corrdatapath = './features/porto_traj_coord'
-gridxypath = './features/porto_traj_grid'
-distancepath = './features/porto_dtw_distance_all_10000'
+# corrdatapath = '../NeuTraj/features/geolife_traj_coord'
+# gridxypath = '../NeuTraj/features/geolife_traj_grid'
+# distancepath = '../NeuTraj/features/geolife_discret_frechet_distance_all_9200'
+# distancepath = '../NeuTraj/features/geolife_erp_39_115_distance_all_9000'
+corrdatapath = '../NeuTraj/features/porto_traj_coord'
+gridxypath = '../NeuTraj/features/porto_traj_grid'
+distancepath = '../NeuTraj/features/porto_edr_distance_all_10000'
 
 # t2s = False
 trmModel = False
@@ -16,9 +16,12 @@ tripleLoss = False
 tripleWeight = 0.99
 triEpoch = -1
 no_matching = False
+pooling_points = False
+pooling_size = 10
+no_subloss = False
 
 kdSampling = False
-evaEpoch = 0
+evaEpoch = 250
 
 # Training Parameters
 method_name = "matching"  # "neutraj" or "matching" or "t2s" or "t3s" or "srn"
@@ -36,8 +39,8 @@ if method_name == 'neutraj' or method_name == 't3s' or method_name == 'srn':
     sampling_num = 10
 # sampling_num = 20  # neutraj:10 match:20
 
-distance_type = distancepath.split('/')[2].split('_')[1]
-data_type = distancepath.split('/')[2].split('_')[0]
+distance_type = distancepath.split('/')[3].split('_')[1]
+data_type = distancepath.split('/')[3].split('_')[0]
 
 # if distance_type == 'dtw' or distance_type == 'erp':
 if distance_type == 'dtw' or distance_type == 'erp':
@@ -57,7 +60,7 @@ if data_type == 'geolife':
     datalength = 9000
     em_batch = 900
 # em_batch = 1000  # geolife:900 porto:1000
-test_num = 1000 #int(datalength - seeds_radio * datalength)   # geolife:7200 porto:8000
+test_num = 8000 #int(datalength - seeds_radio * datalength)   # geolife:7200 porto:8000
 
 # Model Parameters
 d = 128
@@ -92,7 +95,10 @@ def config_to_str():
               'tripleLoss = {}'.format(tripleLoss) + '\n' + \
               'tripleWeight = {}'.format(tripleWeight) + '\n' + \
               'noMatching = {}'.format(no_matching) + '\n' + \
-              'kdSampling = {}'.format(kdSampling)
+              'kdSampling = {}'.format(kdSampling) + '\n' + \
+              'pooling_points = {}'.format(pooling_points) + '\n' + \
+              'pooling_size = {}'.format(pooling_size) + '\n' + \
+              'no_subloss = {}'.format(no_subloss)
     return configs
 
 

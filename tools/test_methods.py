@@ -59,11 +59,11 @@ def test_model(self, traj_embeddings, test_range, print_batch=10, similarity=Fal
                              for j, e in enumerate(traj_embeddings)]
             t_similarity = np.exp(-self.distance[i][:len(traj_embeddings)]*config.mail_pre_degree)
             true_distance = list(enumerate(t_similarity))
-            # learned_distance = list(enumerate(self.distance[i][:len(self.train_seqs)]))
+            learned_distance = list(enumerate(self.distance[i][:len(self.train_seqs)]))
 
-            # s_test_distance = sorted(test_distance, key=lambda a: a[1], reverse=True)
-            # s_true_distance = sorted(true_distance, key=lambda a: a[1], reverse=True)
-            # s_learned_distance = sorted(learned_distance, key=lambda a: a[1])
+            s_test_distance = sorted(test_distance, key=lambda a: a[1], reverse=True)
+            s_true_distance = sorted(true_distance, key=lambda a: a[1], reverse=True)
+            s_learned_distance = sorted(learned_distance, key=lambda a: a[1])
         else:
             # This is for computing the distance
             test_distance = [(j, float(np.sum(np.square(traj_embeddings[i] - e))))
@@ -83,19 +83,19 @@ def test_model(self, traj_embeddings, test_range, print_batch=10, similarity=Fal
         # st_train_distance = sorted(trained_distance, key=lambda a: a[1], reverse=True)
         # st_true_distance = sorted(true_train_distance, key=lambda a:a[1], reverse=True)
 
-        # top10_recall = [l[0] for l in s_test_distance[:11] if l[0] in [j[0] for j in s_true_distance[:11]]]
+        top10_recall = [l[0] for l in s_test_distance[:11] if l[0] in [j[0] for j in s_true_distance[:11]]]
         # # top10_train_recall = [l[0] for l in st_train_distance[:11] if l[0] in [j[0] for j in st_true_distance[:11]]]
-        # top50_recall = [l[0] for l in s_test_distance[:51] if l[0] in [j[0] for j in s_true_distance[:51]]]
-        # top10_in_top50 = [l[0] for l in s_test_distance[:11] if l[0] in [j[0] for j in s_true_distance[:51]]]
+        top50_recall = [l[0] for l in s_test_distance[:51] if l[0] in [j[0] for j in s_true_distance[:51]]]
+        top10_in_top50 = [l[0] for l in s_test_distance[:11] if l[0] in [j[0] for j in s_true_distance[:51]]]
         # top10_in_top100 = [l[0] for l in s_test_distance[:11] if l[0] in [j[0] for j in s_true_distance[:101]]]
 
-        # top_10_count += len(top10_recall) - 1
-        # top_50_count += len(top50_recall) - 1
-        # top10_in_top50_count += len(top10_in_top50) -1
+        top_10_count += len(top10_recall) - 1
+        top_50_count += len(top50_recall) - 1
+        top10_in_top50_count += len(top10_in_top50) -1
         # top10_in_top100_count += len(top10_in_top100) -1
 
 
-        '''l_top10_recall = [l[0] for l in s_learned_distance[:11] if l[0] in [j[0] for j in s_true_distance[:11]]]
+        l_top10_recall = [l[0] for l in s_learned_distance[:11] if l[0] in [j[0] for j in s_true_distance[:11]]]
         l_top50_recall = [l[0] for l in s_learned_distance[:51] if l[0] in [j[0] for j in s_true_distance[:51]]]
 
         l_top_10_count += len(l_top10_recall) - 1
@@ -120,19 +120,19 @@ def test_model(self, traj_embeddings, test_range, print_batch=10, similarity=Fal
 
         error_true += true_top_10_distance
         error_test += test_top_10_distance
-        errorr1050 += test_top_10_distance_r10in50'''
+        errorr1050 += test_top_10_distance_r10in50
 
         test_traj_num += 1
-        # if (i % print_batch) == 0:
-        #     # print test_distance
-        #     print '**----------------------------------**'
-        #     print s_test_distance[:20]
-        #     print s_true_distance[:20]
-        #     print top10_recall
-        #     print top50_recall
-            # print top10_train_recall
-            # print(st_train_distance[:20])
-            # print(st_true_distance[:20])
+        if (i % print_batch) == 0:
+            # print test_distance
+            print '**----------------------------------**'
+            print s_test_distance[:20]
+            print s_true_distance[:20]
+            print top10_recall
+            print top50_recall
+            #print top10_train_recall
+            #print(st_train_distance[:20])
+            #print(st_true_distance[:20])
             # print(traj_embeddings[1500])
             # print(traj_embeddings[98])
             # print(traj_embeddings[1666])
@@ -146,17 +146,17 @@ def test_model(self, traj_embeddings, test_range, print_batch=10, similarity=Fal
     best_res_recallin = 0.0
     best_top10, best_top50, best_top10in50, best_top10in100, best_test_time = 0.0, 0.0, 0.0, 0.0, 0.0
     print 'Test on {} trajs'.format(test_traj_num)
-    #print 'Search Top 50 recall {}'.format(float(top_50_count) / (test_traj_num * 50))
-    #print 'Search Top 10 recall {}'.format(float(top_10_count) / (test_traj_num * 10))
-    #print 'Search Top 10 in Top 50 recall {}'.format(float(top10_in_top50_count) / (test_traj_num * 10))
+    print 'Search Top 50 recall {}'.format(float(top_50_count) / (test_traj_num * 50))
+    print 'Search Top 10 recall {}'.format(float(top_10_count) / (test_traj_num * 10))
+    print 'Search Top 10 in Top 50 recall {}'.format(float(top10_in_top50_count) / (test_traj_num * 10))
     #print 'Search Top 10 in Top 100 recall {}'.format(float(top10_in_top100_count) / (test_traj_num * 10))
     print 'Test time of {} trajectories: {}'.format(test_traj_num, epoch_test_time)
 
     res_list = []
-    # res_list.append(float(top_50_count) / (test_traj_num * 50))
-    # res_list.append(float(top_10_count) / (test_traj_num * 10))
-    # res_list.append(float(top10_in_top50_count) / (test_traj_num * 10))
-    # res_list.append(float(top10_in_top100_count) / (test_traj_num * 10))
+    res_list.append(float(top_50_count) / (test_traj_num * 50))
+    res_list.append(float(top_10_count) / (test_traj_num * 10))
+    res_list.append(float(top10_in_top50_count) / (test_traj_num * 10))
+    res_list.append(float(top10_in_top100_count) / (test_traj_num * 10))
 
     return res_list
 
@@ -216,21 +216,21 @@ def test_matching_model(self, spatial_net, test_range, print_batch=10, similarit
                                                        hidden, hidden)
             a_embeddings, p_embeddings = a_embedding.data.numpy(), p_embedding.data.numpy()'''
             a_embeddings_list, p_embeddings_list = [], []
-            p_attns_list = []
+            # p_attns_list = []
             # hidden1 = (autograd.Variable(torch.zeros(500, self.target_size), requires_grad=False).cuda(),
             #         autograd.Variable(torch.zeros(500, self.target_size), requires_grad=False).cuda())
             # hidden2 = (autograd.Variable(torch.zeros(500, self.target_size), requires_grad=False).cuda(),
             #         autograd.Variable(torch.zeros(500, self.target_size), requires_grad=False).cuda())
             j = 0
             test_batch_size = 500
-            while j < 1000: # self.padded_trajs.shape[0]:
+            while j < self.padded_trajs.shape[0]:
                 a_input_length = []
                 for z in range(test_batch_size):
                     a_input_length.append(self.trajs_length[i])
                 if config.method_name == "matching":
                     if j == 0 and i == test_range[0]:
                         print("Test method: " + config.method_name)
-                    a_out, p_out, _, _, p_attn_a, p_attn_b = spatial_net.smn.f([autograd.Variable(torch.Tensor(self.padded_trajs[i]).unsqueeze(0).repeat(test_batch_size, 1, 1), requires_grad=False).cuda(), a_input_length],
+                    a_out, p_out, _, _ = spatial_net.smn.f([autograd.Variable(torch.Tensor(self.padded_trajs[i]).unsqueeze(0).repeat(test_batch_size, 1, 1), requires_grad=False).cuda(), a_input_length],
                                                     [autograd.Variable(torch.Tensor(self.padded_trajs[j:j+test_batch_size]), requires_grad=False).cuda(), self.trajs_length[j:j+test_batch_size]])
                                                     # hidden1, hidden2, None, None)
                 elif config.method_name == "t2s":
@@ -243,15 +243,15 @@ def test_matching_model(self, spatial_net, test_range, print_batch=10, similarit
                                                             self.trajs_length[j:j + test_batch_size]])
                 # embeddings = out.data.cpu().numpy()
                 a_embedding, p_embedding = a_out.data, p_out.data
-                p_attn_aa = p_attn_a.data
+                # p_attn_aa = p_attn_a.data
                 j += test_batch_size
                 a_embeddings_list.append(a_embedding)
                 p_embeddings_list.append(p_embedding)
-                p_attns_list.append(p_attn_aa)
+                # p_attns_list.append(p_attn_aa)
             a_embeddings_list = torch.cat(a_embeddings_list, dim=0)
             p_embeddings_list = torch.cat(p_embeddings_list, dim=0)
-            p_attns_list = torch.cat(p_attns_list, dim=0)
-            p_attns = p_attns_list.cpu().numpy()
+            # p_attns_list = torch.cat(p_attns_list, dim=0)
+            # p_attns = p_attns_list.cpu().numpy()
             # np.save('p_attn_a_matrix.npy', p_attns)
             a_embeddings, p_embeddings = a_embeddings_list.cpu().numpy(), p_embeddings_list.cpu().numpy()
             #return embeddings_list.cpu().numpy()
@@ -285,8 +285,8 @@ def test_matching_model(self, spatial_net, test_range, print_batch=10, similarit
         # true_train_distance = list(enumerate(tt_similarity))
         # st_train_distance = sorted(trained_distance, key=lambda a: a[1], reverse=True)
         # st_true_distance = sorted(true_train_distance, key=lambda a:a[1], reverse=True)
-        all_attn_ptn.append(p_attns)
-        np.save('p_attn_a_matrix_{}.npy'.format(epochs), np.array(all_attn_ptn))
+        # all_attn_ptn.append(p_attns)
+        # np.save('p_attn_a_matrix_{}.npy'.format(epochs), np.array(all_attn_ptn))
 
         top10_recall = [l[0] for l in s_test_distance[:11] if l[0] in [j[0] for j in s_true_distance[:11]]]
         # top10_train_recall = [l[0] for l in st_train_distance[:11] if l[0] in [j[0] for j in st_true_distance[:11]]]
@@ -386,7 +386,7 @@ def test_matching_time(self, spatial_net, test_range, print_batch=10, similarity
         #         autograd.Variable(torch.zeros(500, self.target_size), requires_grad=False).cuda())
         j = 0
         test_batch_size = 1000
-        while j < 1000: #self.padded_trajs.shape[0]:
+        while j < self.padded_trajs.shape[0]:
             a_input_length = []
             for z in range(test_batch_size):
                 a_input_length.append(self.trajs_length[i])
