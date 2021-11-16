@@ -1,11 +1,11 @@
 # Data path
-# corrdatapath = '../NeuTraj/features/geolife_traj_coord'
-# gridxypath = '../NeuTraj/features/geolife_traj_grid'
-# distancepath = '../NeuTraj/features/geolife_discret_frechet_distance_all_9200'
-# distancepath = '../NeuTraj/features/geolife_erp_39_115_distance_all_9000'
-corrdatapath = '../NeuTraj/features/porto_traj_coord'
-gridxypath = '../NeuTraj/features/porto_traj_grid'
-distancepath = '../NeuTraj/features/porto_edr_distance_all_10000'
+# corrdatapath = './features/geolife_traj_coord'
+# gridxypath = './features/geolife_traj_grid'
+# distancepath = './features/geolife_discret_frechet_distance_all_9200'
+# distancepath = './features/geolife_erp_39_115_distance_all_9000'
+corrdatapath = './features/porto_traj_coord'
+gridxypath = './features/porto_traj_grid'
+distancepath = './features/porto_dtw_distance_all_10000'
 
 # t2s = False
 trmModel = False
@@ -39,8 +39,8 @@ if method_name == 'neutraj' or method_name == 't3s' or method_name == 'srn':
     sampling_num = 10
 # sampling_num = 20  # neutraj:10 match:20
 
-distance_type = distancepath.split('/')[3].split('_')[1]
-data_type = distancepath.split('/')[3].split('_')[0]
+distance_type = distancepath.split('/')[2].split('_')[1]
+data_type = distancepath.split('/')[2].split('_')[0]
 
 # if distance_type == 'dtw' or distance_type == 'erp':
 if distance_type == 'dtw' or distance_type == 'erp':
