@@ -128,7 +128,7 @@ class TrajTrainer(object):
         self.train_seqs = pad_trjs[:train_size]
         if config.method_name == "t2s" or config.method_name == "matching":  # config.t2s:
             self.build_kdtree(self.train_seqs)
-        self.padded_trajs = np.array(pad_sequence(pad_trjs, maxlen=max_len))
+        self.padded_trajs = np.array(pad_sequence(pad_trjs, maxlen=150)) #maxlen=max_len
         distance = cPickle.load(open(distancepath, 'r'))
         max_dis = distance.max()
         # if config.distance_type == 'erp':
@@ -145,6 +145,8 @@ class TrajTrainer(object):
                 if config.distance_type == 'dtw' or config.distance_type == 'edr' or config.distance_type == 'erp' or config.distance_type == 'lcss':
                     distance = distance / max_dis
                     print("Overall distance is divided by max_dis!!!")
+        print "Train data shape"
+        print(np.array(self.train_seqs).shape)
         print "Distance shape"
         print distance[:train_size].shape
         train_distance = distance[:train_size, :train_size]
@@ -270,7 +272,6 @@ class TrajTrainer(object):
                    [np.array(distance), np.array(negative_distance)],
                    [np.array(subtraj_trajs_distance), np.array(subtraj_negative_distance)])
             j = j + self.batch_size
-            # batch_counter += 1
 
     def batch_generator(self, train_seqs, train_distance):
         j = 0
@@ -321,8 +322,8 @@ class TrajTrainer(object):
                     negative_sampling_index_list = all_samples_index_list[10:20]
                 else:
                     all_samples_index_list = sm.distance_sampling(self.distance, len(self.train_seqs), j + i)
-                    sampling_index_list = all_samples_index_list[0:10]
-                    negative_sampling_index_list = all_samples_index_list[10:20]
+                    sampling_index_list = all_samples_index_list[0:config.sampling_num/2]
+                    negative_sampling_index_list = all_samples_index_list[config.sampling_num/2:config.sampling_num]
 
                 # if i == 0:
                 #     print(self.trajs_length[j+i])
@@ -394,7 +395,6 @@ class TrajTrainer(object):
                    [np.array(distance), np.array(negative_distance)],
                    [np.array(subtraj_trajs_distance), np.array(subtraj_negative_distance)])
             j = j + self.batch_size
-            # batch_counter += 1
 
     def neutraj_batch_generator(self, train_seqs, train_distance):
         j = 0
@@ -545,7 +545,6 @@ class TrajTrainer(object):
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-                # optimizer.zero_grad()
 
                 optim_time = time.time()
                 if not in_cell_update:
@@ -554,13 +553,6 @@ class TrajTrainer(object):
                 total_loss += loss.item()
                 total_pos_loss += mse_loss_m.trajs_mse_loss.item()
                 total_neg_loss += mse_loss_m.negative_mse_loss.item()
-                # total_whole_loss += whole_loss.item()
-                # if (i + 1) % print_batch == 0:
-                #     print 'Epoch [{}/{}], Step [{}/{}], Positive_Loss: {}, Negative_Loss: {}, ' \
-                #           'Total_Loss: {}, ''Update_Time_cost: {}, All_Time_cost: {}'.\
-                #            format(epoch + 1, config.epochs, i + 1, len(self.train_seqs) // self.batch_size,
-                #               mse_loss_m.trajs_mse_loss.item(), mse_loss_m.negative_mse_loss.item(),
-                #               loss.item(), batch_end-optim_time, batch_end-start)
 
             end = time.time()
             print 'Epoch [{}/{}], Step [{}/{}], Epoch_Positive_Loss: {}, Epoch_Negative_Loss: {}, ' \
@@ -576,10 +568,10 @@ class TrajTrainer(object):
                 print embeddings.shape
                 print embeddings[0].shape
 
-                acc1 = tm.test_model(self, embeddings, test_range=range(0,1000),#range(int(len(self.padded_trajs)*0.2),
-                                                                  #int(len(self.padded_trajs)*0.2)+config.test_num),
+                acc1 = tm.test_model(self, embeddings, test_range=range(int(len(self.padded_trajs)*0.2),
+                                                                  int(len(self.padded_trajs)*0.2)+config.test_num),
                                  similarity=True, print_batch=print_test)
-                # with torch.no_grad():
+
                 # acc1 = tm.test_matching_model(self, spatial_net, test_range=range(int(len(self.padded_trajs)*0.2),
                 #                                                                   int(len(self.padded_trajs)*0.2)+config.test_num),
                 #                               similarity=True, print_batch=print_test)
@@ -662,7 +654,10 @@ class TrajTrainer(object):
                 loss = sub_loss + whole_loss
 
                 optimizer.zero_grad()
-                loss.backward()
+                if config.no_subloss:
+                    whole_loss.backward()
+                else:
+                    loss.backward()
                 optimizer.step()
                 # optimizer.zero_grad()
 
@@ -700,37 +695,24 @@ class TrajTrainer(object):
                                                                    int(len(self.padded_trajs)*0.2)+config.test_num),
                                  similarity=True, print_batch=print_test)'''
                 # with torch.no_grad():
-                tm.test_matching_time(self, spatial_net, test_range=range(0,1000), #range(int(len(self.padded_trajs)*config.seeds_radio),
-                                                                                #int(len(self.padded_trajs)*config.seeds_radio)+config.test_num),
-                                              similarity=True, print_batch=print_test)
-                # acc1 = tm.test_matching_model(self, spatial_net, test_range=range(int(len(self.padded_trajs)*config.seeds_radio),
-                #                                                                   int(len(self.padded_trajs)*config.seeds_radio)+config.test_num),
-                #                               similarity=True, print_batch=print_test, epochs=epoch)
+                # tm.test_matching_time(self, spatial_net, test_range=range(0,10000), #range(int(len(self.padded_trajs)*config.seeds_radio),
+                #                                                                 #int(len(self.padded_trajs)*config.seeds_radio)+config.test_num),
+                #                               similarity=True, print_batch=print_test)
+                acc1 = tm.test_matching_model(self, spatial_net, test_range=range(int(len(self.padded_trajs)*config.seeds_radio),
+                                                                                  int(len(self.padded_trajs)*config.seeds_radio)+config.test_num),
+                                              similarity=True, print_batch=print_test, epochs=epoch)
 
-                # if acc1[0]+acc1[1] > best_per[0]+best_per[1]:
-                #     best_per = acc1
-                #     if save_model:
-                #         save_model_name = './model/' + config.distance_type + '/matchingFT/{}_{}_{}_training'\
-                #                           .format(config.data_type, config.distance_type, config.method_name) +\
-                #                           '_config_{}_{}_{}.pt'.format(config.stard_unit, config.learning_rate, config.qerror)
-                #         print save_model_name
-                #         torch.save(spatial_net.state_dict(), save_model_name)
-                # print(best_per)
+                if acc1[0]+acc1[1] > best_per[0]+best_per[1]:
+                    best_per = acc1
+                    if save_model:
+                        save_model_name = './model/' + config.distance_type + '/matchingFT/{}_{}_{}_training'\
+                                          .format(config.data_type, config.distance_type, config.method_name) +\
+                                          '_config_{}_{}_{}.pt'.format(config.stard_unit, config.learning_rate, config.qerror)
+                        print save_model_name
+                        torch.save(spatial_net.state_dict(), save_model_name)
+                print(best_per)
 
                 prev10_loss = total_loss
-
-            # if save_model and (epoch % 5 == 0):
-            #     save_model_name = './model/' + config.distance_type + '/test/{}_{}_{}_training_{}'\
-            #                           .format(config.data_type, config.distance_type, config.recurrent_unit,
-            #                                   str(epoch)) +\
-            #                     '_config_{}_{}_{}_{}_{}_{}_{}_{}'.format(config.stard_unit, config.learning_rate,
-            #                                                              config.batch_size, config.sampling_num,
-            #                                                              config.seeds_radio, config.data_type,
-            #                                                              str(stard_LSTM), config.d) +\
-            #                     '_train.h5'#'_train_{}_test_{}_{}_{}_{}_{}.h5'.format(acc1[0], acc1[1], acc1[2], acc1[3],
-            #                                                               #acc1[4], acc1[5])
-            #     print save_model_name
-            #     torch.save(spatial_net.state_dict(), save_model_name)
 
     def t2s_train(self, print_batch=10, print_test=3600, save_model=False, load_model=None,
                       in_cell_update=True, stard_LSTM=False):
@@ -799,12 +781,6 @@ class TrajTrainer(object):
                 total_pos_loss += mse_loss_m.trajs_mse_loss.item()
                 total_neg_loss += mse_loss_m.negative_mse_loss.item()
                 total_whole_loss += whole_loss.item()
-                # if (i + 1) % print_batch == 0:
-                #     print 'Epoch [{}/{}], Step [{}/{}], Positive_Loss: {}, Negative_Loss: {}, Whole_Loss: {}, ' \
-                #           'Total_Loss: {}, ''Update_Time_cost: {}, All_Time_cost: {}'.\
-                #            format(epoch + 1, config.epochs, i + 1, len(self.train_seqs) // self.batch_size,
-                #               mse_loss_m.trajs_mse_loss.item(), mse_loss_m.negative_mse_loss.item(),
-                #               whole_loss.item(), loss.item(), batch_end-optim_time, batch_end-start)
 
             end = time.time()
             print 'Epoch [{}/{}], Step [{}/{}], Epoch_Positive_Loss: {}, Epoch_Negative_Loss: {}, ' \
@@ -824,17 +800,10 @@ class TrajTrainer(object):
                 acc1 = tm.test_model(self,embeddings, test_range=range(int(len(self.padded_trajs)*0.2),
                                                                    int(len(self.padded_trajs)*0.2)+config.test_num),
                                  similarity=True, print_batch=print_test)'''
-                # with torch.no_grad():
+
                 tm.test_matching_time(self, spatial_net, test_range=range(int(len(self.padded_trajs)*config.seeds_radio),
                                                                                   int(len(self.padded_trajs)*config.seeds_radio)+config.test_num),
                                               similarity=True, print_batch=print_test)
-                # acc1 = tm.test_matching_model(self, spatial_net, test_range=range(int(len(self.padded_trajs)*0.2),
-                #                                                                   int(len(self.padded_trajs)*0.2)+config.test_num),
-                #                               similarity=True, print_batch=print_test)
-
-                # if acc1[0]+acc1[1] > best_per[0]+best_per[1]:
-                #     best_per = acc1
-                # print(best_per)
 
                 prev10_loss = total_loss
 

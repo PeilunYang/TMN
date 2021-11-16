@@ -10,13 +10,18 @@ class WeightMSELoss(Module):
     def __init__(self, batch_size, sampling_num):
         super(WeightMSELoss, self).__init__()
         self.weight = []
+        if config.method_name == "matching":
+            pos_sampling_num = config.sampling_num / 2
+        else:
+            pos_sampling_num = config.sampling_num
         for i in range(batch_size):
             self.weight.append(0.)
-            for traj_index in range(10):#sampling_num):
+            for traj_index in range(pos_sampling_num): #10):#sampling_num):
                 if config.method_name == "srn":
                     self.weight.append(np.array([1]))
                 else:
-                    self.weight.append(np.array([config.sampling_num - traj_index]))
+                    # self.weight.append(np.array([config.sampling_num - traj_index]))
+                    self.weight.append(np.array([pos_sampling_num - traj_index]))
                 
 
         self.weight = np.array(self.weight)
@@ -110,13 +115,18 @@ class WeightedRankingLoss(Module):
         self.positive_loss = WeightMSELoss(batch_size, sampling_num)
         self.negative_loss = WeightMSELoss(batch_size, sampling_num)
         self.weight = []
+        if config.method_name == "matching":
+            pos_sampling_num = config.sampling_num / 2
+        else:
+            pos_sampling_num = config.sampling_num
         for i in range(batch_size):
             self.weight.append(0.)
-            for traj_index in range(10):  # sampling_num):
+            for traj_index in range(pos_sampling_num):  #10):  # sampling_num):
                 if config.qerror:
                     self.weight.append(np.array([1]))
                 else:
-                    self.weight.append(np.array([config.sampling_num - traj_index]))
+                    # self.weight.append(np.array([config.sampling_num - traj_index]))
+                    self.weight.append(np.array([pos_sampling_num - traj_index]))
                 # self.weight.append(np.array([1]))
 
         self.weight = np.array(self.weight)
@@ -171,57 +181,6 @@ class WeightedRankingLoss(Module):
             n_input_len = negative_input[i]
             num_counter = 0
             tmp_batch_loss = 0.
-            '''
-            for j in range(0, (a_input_len/10)+1):  # (a_input_len/10)
-                ap_subtraj = a_emb_p.permute(1, 0, 2)[i][min((j+1)*10 - 1, a_input_len-1)].unsqueeze(0)
-                an_subtraj = a_emb_n.permute(1, 0, 2)[i][min((j+1)*10 - 1, a_input_len-1)].unsqueeze(0)
-                p_subtraj = p_emb.permute(1, 0, 2)[i][p_input_len-1].unsqueeze(0)
-                n_subtraj = n_emb.permute(1, 0, 2)[i][n_input_len-1].unsqueeze(0)
-                ap_pred = torch.exp(-F.pairwise_distance(ap_subtraj, p_subtraj, p=2))
-                an_pred = torch.exp(-F.pairwise_distance(an_subtraj, n_subtraj, p=2))
-                #ap_target = autograd.Variable(subtraj_trajs_distance[i][j][(p_input_len/10)]).cuda()
-                ap_target = subtraj_trajs_distance[i][j][p_input_len/10]
-                #an_target = autograd.Variable(subtraj_neg_distance[i][j][n_input_len/10]).cuda()
-                an_target = subtraj_neg_distance[i][j][n_input_len/10]
-                ap_loss = torch.mul((ap_target - ap_pred), (ap_target - ap_pred))
-                ap_loss = ap_loss * self.weight[i]
-                an_loss = torch.mul(F.relu(an_target - an_pred), F.relu(an_target - an_pred))
-                # an_loss = torch.mul((an_target - an_pred), (an_target - an_pred))
-                an_loss = an_loss * self.weight[i]
-                # loss = torch.sum(torch.Tensor([ap_loss, an_loss]))
-                loss = ap_loss + an_loss
-                # loss = sum([ap_loss, an_loss])
-                tmp_batch_loss += loss
-                num_counter += 1
-                batch_num_counter += 1
-            batch_loss += tmp_batch_loss / num_counter
-            '''
-            
-            # for j in range(0, (a_input_len/10)+1):  # (a_input_len/10)
-            #     loss = 0.
-            #     for p in range(0, (p_input_len/10)+1):
-            #         ap_subtraj = a_emb_p.permute(1, 0, 2)[i][min((j+1)*10 - 1, a_input_len-1)].unsqueeze(0)
-            #         p_subtraj = p_emb.permute(1, 0, 2)[i][min((p+1)*10 - 1, p_input_len-1)].unsqueeze(0)
-            #         ap_pred = torch.exp(-F.pairwise_distance(ap_subtraj, p_subtraj, p=2))
-            #         ap_target = subtraj_trajs_distance[i][j][p]
-            #         ap_loss = torch.mul((ap_target - ap_pred), (ap_target - ap_pred))
-            #         ap_loss = ap_loss * self.weight[i]
-            #         loss += ap_loss
-            #         num_counter += 1
-            #     for q in range(0, (n_input_len/10)+1):
-            #         an_subtraj = a_emb_n.permute(1, 0, 2)[i][min((j+1)*10 - 1, a_input_len-1)].unsqueeze(0)
-            #         n_subtraj = n_emb.permute(1, 0, 2)[i][min((q+1)*10 - 1, n_input_len-1)].unsqueeze(0)
-            #         an_pred = torch.exp(-F.pairwise_distance(an_subtraj, n_subtraj, p=2))
-            #         an_target = subtraj_neg_distance[i][j][q]
-            #         an_loss = torch.mul(F.relu(an_target - an_pred), F.relu(an_target - an_pred))
-            #         an_loss = an_loss * self.weight[i]
-            #         loss += an_loss
-            #         num_counter += 1
-            #     # loss = ap_loss + an_loss
-            #     tmp_batch_loss += loss
-            #     # num_counter += 1
-            # batch_num_counter += 1
-            # batch_loss += tmp_batch_loss / num_counter
 
             ap_min_length = min(a_input_len, p_input_len)
             loss = 0.

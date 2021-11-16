@@ -531,6 +531,7 @@ class SMNEncoder(Module):
         self.mlp_ele = torch.nn.Linear(2, hidden_size/2).cuda()
         self.nonLeaky = torch.nn.LeakyReLU(0.1)
         self.nonTanh = torch.nn.Tanh()
+        self.point_pooling = torch.nn.AvgPool1d(config.pooling_size)
         #model = make_model(1100*1100, 1, N=4)
         #self.bitrm = model
         #self.zz = torch.Tensor([0.5])
@@ -651,29 +652,87 @@ class SMNEncoder(Module):
     def f(self, inputs_a, inputs_b):
         input_a, input_len_a = inputs_a  # porto inputs:220x149x4 inputs_len:list
         input_b, input_len_b = inputs_b
-        time_steps_a = input_a.size(1)  # porto:149
-        time_steps_b = input_b.size(1)
+        if config.pooling_points:
+            time_steps_a = input_a.size(1)/config.pooling_size  # porto:149
+            time_steps_b = input_b.size(1)/config.pooling_size
+        else:
+            time_steps_a = input_a.size(1)
+            time_steps_b = input_b.size(1)
         mlp_input_a = self.nonLeaky(self.mlp_ele(input_a[:, :, :-2]))
+        pooled_mlp_input_a = self.point_pooling(mlp_input_a.permute(0,2,1)).permute(0,2,1)
         mlp_input_b = self.nonLeaky(self.mlp_ele(input_b[:, :, :-2]))
+        pooled_mlp_input_b = self.point_pooling(mlp_input_b.permute(0,2,1)).permute(0,2,1)
         input_grid_a = (input_a[:, :, 3] * 1100 + input_a[:, :, 2] - 2202 + 1).clamp(0, 1100 * 1100).long()  # porto:220x149
         mask_a = (input_grid_a != 0).unsqueeze(-2).cuda()  # porto:220x1x149
+        pooled_mask_a = self.point_pooling(mask_a.float())
         input_grid_b = (input_b[:, :, 3] * 1100 + input_b[:, :, 2] - 2202 + 1).clamp(0, 1100 * 1100).long()  # porto:220x149
         mask_b = (input_grid_b != 0).unsqueeze(-2).cuda()  # porto:220x1x149
+        pooled_mask_b = self.point_pooling(mask_b.float())
 
         out_a, state_a = self.init_hidden(self.hidden_size, input_a.size(0))
         if config.no_matching:
             cell_input_a = mlp_input_a
         else:
-            scores_a_o = torch.matmul(mlp_input_a, mlp_input_b.transpose(-2, -1))  # porto:220x149x149
-            scores_a_o = scores_a_o.masked_fill(mask_b == 0, -1e9).transpose(-2, -1)
-            scores_a_o = scores_a_o.masked_fill(mask_a == 0, -1e9).transpose(-2, -1)
-            scores_a = scores_a_o  # porto:220x149x149
-            p_attn_a = F.softmax(scores_a, dim=-1)
-            p_attn_a = p_attn_a.masked_fill(mask_b == 0, 0.0).transpose(-2, -1)
-            p_attn_a = p_attn_a.masked_fill(mask_a == 0, 0.0).transpose(-2, -1)
-            attn_ab = p_attn_a.unsqueeze(-1).expand(-1, -1, -1, self.hidden_size / 2)
-            sum_traj_b = mlp_input_b.unsqueeze(-3).expand(-1, time_steps_a, -1, -1).mul(attn_ab).sum(dim=-2)
-            cell_input_a = torch.cat((mlp_input_a, (mlp_input_a-sum_traj_b)), dim=-1)  # porto:220x149x128
+            if config.pooling_points:
+                scores_a_o = torch.matmul(mlp_input_a, pooled_mlp_input_b.transpose(-2, -1))  # porto:220x149x149
+                scores_a_o = scores_a_o.masked_fill(pooled_mask_b == 0, -1e9).transpose(-2, -1)
+                scores_a_o = scores_a_o.masked_fill(mask_a == 0, -1e9).transpose(-2, -1)
+                scores_a = scores_a_o  # porto:220x149x149
+                p_attn_a = F.softmax(scores_a, dim=-1)
+                p_attn_a = p_attn_a.masked_fill(pooled_mask_b == 0, 0.0).transpose(-2, -1)
+                p_attn_a = p_attn_a.masked_fill(mask_a == 0, 0.0).transpose(-2, -1)
+                attn_ab = p_attn_a.unsqueeze(-1).expand(-1, -1, -1, self.hidden_size / 2)
+                # sum_traj_b = mlp_input_b.unsqueeze(-3).expand(-1, time_steps_a, -1, -1).mul(attn_ab).sum(dim=-2)
+                sum_traj_b = mlp_input_b.unsqueeze(-2).expand(-1, -1, time_steps_a, -1).mul(attn_ab).sum(dim=-2)
+                cell_input_a = torch.cat((mlp_input_a, (mlp_input_a-sum_traj_b)), dim=-1)  # porto:220x149x128 
+                '''
+                scores_a_o = torch.matmul(pooled_mlp_input_a, pooled_mlp_input_b.transpose(-2, -1))  # porto:220x149x149
+                expand_scao = torch.zeros(220, 150, 150).cuda()       
+                for e_z in range(220):
+                    for e_j in range(150):
+                        for e_i in range(150):
+                            expand_scao[e_z][e_j][e_i] = scores_a_o[e_z][e_j / config.pooling_size][e_i / config.pooling_size]
+                scores_a_o = expand_scao.masked_fill(mask_b == 0, -1e9).transpose(-2, -1)
+                scores_a_o = scores_a_o.masked_fill(mask_a == 0, -1e9).transpose(-2, -1)
+                scores_a = scores_a_o  # porto:220x149x149
+                p_attn_a = F.softmax(scores_a, dim=-1)
+                p_attn_a = p_attn_a.masked_fill(mask_b == 0, 0.0).transpose(-2, -1)
+                p_attn_a = p_attn_a.masked_fill(mask_a == 0, 0.0).transpose(-2, -1)
+                attn_ab = p_attn_a.unsqueeze(-1).expand(-1, -1, -1, self.hidden_size / 2)
+                sum_traj_b = mlp_input_b.unsqueeze(-3).expand(-1, time_steps_a, -1, -1).mul(attn_ab).sum(dim=-2)
+                # sum_traj_b = mlp_input_b.unsqueeze(-2).expand(-1, -1, time_steps_a, -1).mul(attn_ab).sum(dim=-2)
+                cell_input_a = torch.cat((mlp_input_a, (mlp_input_a-sum_traj_b)), dim=-1)  # porto:220x149x128'''
+                '''
+                scores_a_o = torch.matmul(pooled_mlp_input_a, pooled_mlp_input_b.transpose(-2, -1))  # porto:220x149x149       
+                scores_a_o = scores_a_o.masked_fill(pooled_mask_b == 0, -1e9).transpose(-2, -1)
+                scores_a_o = scores_a_o.masked_fill(pooled_mask_a == 0, -1e9).transpose(-2, -1)
+                scores_a = scores_a_o  # porto:220x149x149
+                p_attn_a = F.softmax(scores_a, dim=-1)
+                p_attn_a = p_attn_a.masked_fill(pooled_mask_b == 0, 0.0).transpose(-2, -1)
+                p_attn_a = p_attn_a.masked_fill(pooled_mask_a == 0, 0.0).transpose(-2, -1)
+                attn_ab = p_attn_a.unsqueeze(-1).expand(-1, -1, -1, self.hidden_size / 2)
+                sum_traj_b = pooled_mlp_input_b.unsqueeze(-3).expand(-1, time_steps_a, -1, -1).mul(attn_ab).sum(dim=-2)
+                # sum_traj_b = mlp_input_b.unsqueeze(-2).expand(-1, -1, time_steps_a, -1).mul(attn_ab).sum(dim=-2)
+                cell_input_a_list = []
+                for e_z in range(220):
+                    traj_input_a_list = []
+                    for e_j in range(150):
+                        traj_input_a_list.append( torch.cat((mlp_input_a[e_z][e_j], (mlp_input_a[e_z][e_j]-sum_traj_b[e_z][e_j/config.pooling_size])), dim=-1).unsqueeze(0) )
+                    cell_input_a_list.append(torch.cat(traj_input_a_list,dim=0).unsqueeze(0))
+                cell_input_a = torch.cat(cell_input_a_list, dim=0)'''
+                #cell_input_a = torch.cat((mlp_input_a, (mlp_input_a-sum_traj_b)), dim=-1)  # porto:220x149x128
+            else:
+                scores_a_o = torch.matmul(mlp_input_a, mlp_input_b.transpose(-2, -1))  # porto:220x149x149
+                scores_a_o = scores_a_o.masked_fill(mask_b == 0, -1e9).transpose(-2, -1)
+                scores_a_o = scores_a_o.masked_fill(mask_a == 0, -1e9).transpose(-2, -1)
+                scores_a = scores_a_o  # porto:220x149x149
+                p_attn_a = F.softmax(scores_a, dim=-1)
+                p_attn_a = p_attn_a.masked_fill(mask_b == 0, 0.0).transpose(-2, -1)
+                p_attn_a = p_attn_a.masked_fill(mask_a == 0, 0.0).transpose(-2, -1)
+                attn_ab = p_attn_a.unsqueeze(-1).expand(-1, -1, -1, self.hidden_size / 2)
+                sum_traj_b = mlp_input_b.unsqueeze(-3).expand(-1, time_steps_a, -1, -1).mul(attn_ab).sum(dim=-2)
+                # sum_traj_b = mlp_input_b.unsqueeze(-2).expand(-1, -1, time_steps_a, -1).mul(attn_ab).sum(dim=-2)
+                cell_input_a = torch.cat((mlp_input_a, (mlp_input_a-sum_traj_b)), dim=-1)  # porto:220x149x128
         outputs_a, (hn_a, cn_a) = self.seq_model(cell_input_a.permute(1, 0, 2), (out_a, state_a))
         # outputs_a, (hn_a, cn_a) = self.seq_model(mlp_input_a.permute(1, 0, 2), (out_a, state_a))
         # outputs_a = self.batch_norm1(outputs_a.permute(1,2,0)).permute(2,0,1)
@@ -690,14 +749,52 @@ class SMNEncoder(Module):
         if config.no_matching:
             cell_input_b = mlp_input_b
         else:
-            scores_b = scores_a_o.permute(0, 2, 1)
-            ## scores_b = scores_b.masked_fill(mask_b == 0, -1e9)
-            p_attn_b = F.softmax(scores_b, dim=-1)
-            p_attn_b = p_attn_b.masked_fill(mask_a == 0, 0.0).transpose(-2, -1)
-            p_attn_b = p_attn_b.masked_fill(mask_b == 0, 0.0).transpose(-2, -1)
-            attn_ba = p_attn_b.unsqueeze(-1).expand(-1, -1, -1, self.hidden_size / 2)
-            sum_traj_a = mlp_input_a.unsqueeze(-3).expand(-1, time_steps_b, -1, -1).mul(attn_ba).sum(dim=-2)
-            cell_input_b = torch.cat((mlp_input_b, (mlp_input_b - sum_traj_a)), dim=-1)  # porto:220x149x128
+            if config.pooling_points:
+                # scores_b = scores_a_o.permute(0, 2, 1)
+                scores_b_o = torch.matmul(mlp_input_b, pooled_mlp_input_a.transpose(-2, -1))  # porto:220x149x149
+                scores_b_o = scores_b_o.masked_fill(pooled_mask_a == 0, -1e9).transpose(-2, -1)
+                scores_b_o = scores_b_o.masked_fill(mask_b == 0, -1e9).transpose(-2, -1)
+                scores_b = scores_b_o  # porto:220x149x149
+                ## scores_b = scores_b.masked_fill(mask_b == 0, -1e9)
+                p_attn_b = F.softmax(scores_b, dim=-1)
+                p_attn_b = p_attn_b.masked_fill(pooled_mask_a == 0, 0.0).transpose(-2, -1)
+                p_attn_b = p_attn_b.masked_fill(mask_b == 0, 0.0).transpose(-2, -1)
+                attn_ba = p_attn_b.unsqueeze(-1).expand(-1, -1, -1, self.hidden_size / 2)
+                # sum_traj_a = mlp_input_a.unsqueeze(-3).expand(-1, time_steps_b, -1, -1).mul(attn_ba).sum(dim=-2)
+                sum_traj_a = mlp_input_a.unsqueeze(-2).expand(-1, -1, time_steps_b, -1).mul(attn_ba).sum(dim=-2)
+                cell_input_b = torch.cat((mlp_input_b, (mlp_input_b - sum_traj_a)), dim=-1)  # porto:220x149x128
+                '''
+                scores_b = expand_scao.permute(0, 2, 1)
+                p_attn_b = F.softmax(scores_b, dim=-1)
+                p_attn_b = p_attn_b.masked_fill(mask_a == 0, 0.0).transpose(-2, -1)
+                p_attn_b = p_attn_b.masked_fill(mask_b == 0, 0.0).transpose(-2, -1)
+                attn_ba = p_attn_b.unsqueeze(-1).expand(-1, -1, -1, self.hidden_size / 2)
+                sum_traj_a = mlp_input_a.unsqueeze(-3).expand(-1, time_steps_b, -1, -1).mul(attn_ba).sum(dim=-2)
+                cell_input_b = torch.cat((mlp_input_b, (mlp_input_b - sum_traj_a)), dim=-1)  # porto:220x149x128 '''
+                '''scores_b = scores_a_o.permute(0, 2, 1)
+                p_attn_b = F.softmax(scores_b, dim=-1)
+                p_attn_b = p_attn_b.masked_fill(pooled_mask_a == 0, 0.0).transpose(-2, -1)
+                p_attn_b = p_attn_b.masked_fill(pooled_mask_b == 0, 0.0).transpose(-2, -1)
+                attn_ba = p_attn_b.unsqueeze(-1).expand(-1, -1, -1, self.hidden_size / 2)
+                sum_traj_a = pooled_mlp_input_a.unsqueeze(-3).expand(-1, time_steps_b, -1, -1).mul(attn_ba).sum(dim=-2)
+                # cell_input_b = torch.cat((mlp_input_b, (mlp_input_b - sum_traj_a)), dim=-1)  # porto:220x149x128
+                cell_input_b_list = []
+                for e_z in range(220):
+                    traj_input_b_list = []
+                    for e_j in range(150):
+                        traj_input_b_list.append( torch.cat((mlp_input_b[e_z][e_j], (mlp_input_b[e_z][e_j]-sum_traj_a[e_z][e_j/config.pooling_size])), dim=-1).unsqueeze(0) )
+                    cell_input_b_list.append(torch.cat(traj_input_b_list,dim=0).unsqueeze(0))
+                cell_input_b = torch.cat(cell_input_b_list, dim=0)'''
+            else:
+                scores_b = scores_a_o.permute(0, 2, 1)
+                ## scores_b = scores_b.masked_fill(mask_b == 0, -1e9)
+                p_attn_b = F.softmax(scores_b, dim=-1)
+                p_attn_b = p_attn_b.masked_fill(mask_a == 0, 0.0).transpose(-2, -1)
+                p_attn_b = p_attn_b.masked_fill(mask_b == 0, 0.0).transpose(-2, -1)
+                attn_ba = p_attn_b.unsqueeze(-1).expand(-1, -1, -1, self.hidden_size / 2)
+                sum_traj_a = mlp_input_a.unsqueeze(-3).expand(-1, time_steps_b, -1, -1).mul(attn_ba).sum(dim=-2)
+                # sum_traj_a = mlp_input_a.unsqueeze(-2).expand(-1, -1, time_steps_b, -1).mul(attn_ba).sum(dim=-2)
+                cell_input_b = torch.cat((mlp_input_b, (mlp_input_b - sum_traj_a)), dim=-1)  # porto:220x149x128
         outputs_b, (hn_b, cn_b) = self.seq_model(cell_input_b.permute(1, 0, 2), (out_b, state_b))
         # outputs_b, (hn_b, cn_b) = self.seq_model(mlp_input_b.permute(1, 0, 2), (out_b, state_b))
         # outputs_b = self.batch_norm1(outputs_b.permute(1,2,0)).permute(2,0,1)
