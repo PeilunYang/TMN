@@ -1,4 +1,4 @@
-from geo_rnns.traj_trainer import TrajTrainer
+from traj_rnns.traj_trainer import TrajTrainer
 from tools import config
 import os
 
